@@ -16,6 +16,19 @@ from scrapy.utils.response import open_in_browser, response_status_message
 from dmoz import logger
 from scrapy.exceptions import CloseSpider
 
+anti_spider_breakpoit_msg = 'detected anti spider, please take a break for 10 min. restart to resume'
+
+# if encounter anti spider, quit, set order to 450 in settings
+# this middleware must be defined, and must before RetryMiddleware
+# because the RetryMiddleware will not stop the crawler, it just appends failed request to the end
+# of the scheduler, the continuing crawling will worsen the situation of being banned.
+class Detect_anti_spider_Middleware(object):
+    def process_response(self, request, response, spider):
+        if TaobaoSpider_2.detect_anti_spider_from_response(response):
+            logger.critical(anti_spider_breakpoit_msg)
+            raise CloseSpider(anti_spider_breakpoit_msg)
+        return response
+
 class TaobaoSpider_2(Spider):
     """
     by parse javascript code on taobao page
@@ -31,8 +44,10 @@ class TaobaoSpider_2(Spider):
         },
         'DOWNLOADER_MIDDLEWARES': {
             'scrapy.contrib.downloadermiddleware.useragent.UserAgentMiddleware': None,
-            'random_useragent.RandomUserAgentMiddleware': 400
+            'random_useragent.RandomUserAgentMiddleware': 400,
+            'taobao_crawler.spiders.taobao_2.Detect_anti_spider_Middleware': 450 # 450 is before 500(RetryMiddleware)
         },
+        # FIXME: job resuming seems not working
         'JOBDIR':  os.path.join(os.path.dirname(__file__), '..', 'JOB', 'Taobao2'),
     }
 
@@ -45,7 +60,6 @@ class TaobaoSpider_2(Spider):
         super(TaobaoSpider_2, self).__init__()
         self.scrape_count = 0
         self.total_scrape = 1
-        self.anti_spider_breakpoit_msg = 'detected anti spider, please take a break for 10 min. restart to resume'
 
     def start_requests(self):
         if if_load_cookies:
@@ -74,7 +88,6 @@ class TaobaoSpider_2(Spider):
             url = ''.join([self.easton_start_urls[0], '&', url.encode('utf-8')])
             item['url'] = url
             items.append(item)
-            self.scrape_count += 1
             yield item
 
         for i in items:
@@ -102,14 +115,13 @@ class TaobaoSpider_2(Spider):
 
     def parse_js_obj_g_page_config(self, response):
         """
-        :param response:
-        :type response: str
         :return dicted js obj  g_page_config:
         :rtype :dict
         """
         if self.detect_anti_spider_from_response(response):
-            logger.critical(self.anti_spider_breakpoit_msg)
-            sys.exit()
+            logger.critical(anti_spider_breakpoit_msg)
+            raise CloseSpider(anti_spider_breakpoit_msg)
+            #sys.exit() #won't quit, just a exception
         # this name is from taobao page: https://s.taobao.com/search?q=空调
         g_page_config = ''
         for line in response.body.split('\n'):
@@ -118,12 +130,11 @@ class TaobaoSpider_2(Spider):
                 break
 
         js_obj_gen = ijson.items(StringIO(''.join(('{', g_page_config, '}'))), '')
-        js_obj_from_gen = [i for i in js_obj_gen]
-        js_obj = js_obj_from_gen[0]
+        js_obj = list(js_obj_gen)[0]
 
         if self.detect_anti_spider_from_js_obj(js_obj, response):
-            logger.critical(self.anti_spider_breakpoit_msg)
-            sys.exit()
+            logger.critical(anti_spider_breakpoit_msg)
+            raise CloseSpider(anti_spider_breakpoit_msg)
         return js_obj
 
     def detect_anti_spider_from_js_obj(self, js_obj, response):
@@ -139,7 +150,8 @@ class TaobaoSpider_2(Spider):
             return True
         return False
 
-    def detect_anti_spider_from_response(self, response):
+    @classmethod
+    def detect_anti_spider_from_response(cls, response):
         if 'anti_Spider' in response.url:
             return True
         return False

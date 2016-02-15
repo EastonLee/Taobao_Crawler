@@ -28,7 +28,7 @@ Taobao_Crawler
         ├── spiders
         │   ├── __init__.py
         │   ├── dmoz.py 模仿案例
-        │   ├── taobao_1.py 方法一
+        │   ├── taobao_1.py 方法一(停止开发)
         │   ├── taobao_2.py 方法二(推荐)
         └── useragents.txt 随机User-Agent列表
 
@@ -52,6 +52,8 @@ Taobao_Crawler
     chromedriver_path，phantomjs_driver_path，inject_jsfile_path: 对应的驱动的本地地址，jsfile的url。在我的环境中，https://local.example.com/在本地搭建。
 
     random_useragent.RandomUserAgentMiddleware: 用来在发送的请求中随机添加User-Agent。
+
+    CONCURRENT_REQUESTS_PER_IP, DOWNLOAD_DELAY: 调节每个IP的并发请求数和下载延迟, 如果遇到反爬虫, 请酌情调节这两个值.
 
     其他部分请参考[Scrapy文档](http://doc.scrapy.org/en/latest/)
 
